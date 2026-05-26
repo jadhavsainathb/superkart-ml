@@ -3,3 +3,13 @@ venv/
 .env
 .DS_Store
 *.log
+
+.streamlit/
+
+*.pyc
+
+docker-data/__pycache__/
+venv/
+.env
+.DS_Store
+*.log
