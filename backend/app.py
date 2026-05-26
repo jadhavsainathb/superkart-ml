@@ -1,98 +1,219 @@
+import joblib
+import pandas as pd
+import psycopg2
+import json
+import time
 
-# Import required libraries
-import joblib                       # For loading the trained ML model
-import pandas as pd                 # For handling input data
-from flask import Flask, request, jsonify   # Flask framework for building API
-
-# -------------------------------------------------------------
-# Initialize the Flask application
-# -------------------------------------------------------------
-# The name helps identify the API service
-superKart_predictor_api = Flask("SuperKart Product Sales Predictor")
-
-# -------------------------------------------------------------
-# Load the trained machine learning pipeline model
-# -------------------------------------------------------------
-# This model includes preprocessing steps and the trained algorithm
-model = joblib.load("model/superKart_model_v1_0.joblib")
+from datetime import datetime
+from flask import Flask, request, jsonify
 
 
-# -------------------------------------------------------------
-# Home endpoint
-# -------------------------------------------------------------
-# Used to verify that the API service is running successfully
-@superKart_predictor_api.get('/')
+superKart_predictor_api = Flask(
+    "SuperKart Product Sales Predictor"
+)
+
+# ---------------------------------------------------------
+# Load model
+# ---------------------------------------------------------
+model = joblib.load(
+    "model/superKart_model_v1_0.joblib"
+)
+
+# ---------------------------------------------------------
+# RDS connection
+# ---------------------------------------------------------
+DB_HOST = "superkartdb.c5ywy8ocsual.ap-south-1.rds.amazonaws.com"
+DB_PORT = 5432
+DB_NAME = "postgres"
+
+DB_USER = "postgres"
+DB_PASSWORD = "postgres"
+
+
+def get_connection():
+
+    return psycopg2.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        database=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD
+    )
+
+
+def log_prediction(
+    request_time,
+    response_time,
+    duration_ms,
+    input_parameters,
+    prediction_output
+):
+
+    conn = get_connection()
+
+    cur = conn.cursor()
+
+    insert_query = """
+    INSERT INTO prediction_logs (
+
+        request_time,
+        response_time,
+        duration_ms,
+        input_parameters,
+        prediction_output,
+        model_version
+
+    )
+
+    VALUES (
+
+        %s,
+        %s,
+        %s,
+        %s,
+        %s,
+        %s
+
+    )
+    """
+
+    cur.execute(
+
+        insert_query,
+
+        (
+
+            request_time,
+            response_time,
+            duration_ms,
+
+            json.dumps(
+                input_parameters
+            ),
+
+            json.dumps(
+                prediction_output
+            ),
+
+            "v1"
+
+        )
+
+    )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+
+@superKart_predictor_api.get("/")
 def home():
-    return "Welcome to the SuperKart Product Sales Prediction API!"
+
+    return (
+        "Welcome to the SuperKart "
+        "Product Sales Prediction API!"
+    )
 
 
-# -------------------------------------------------------------
-# Endpoint for predicting sales of a single product
-# -------------------------------------------------------------
-# This endpoint expects JSON input containing product and store features
-@superKart_predictor_api.post('/v1/predict')
+@superKart_predictor_api.post(
+    "/v1/predict"
+)
 def predict_sales():
 
-    # Read JSON data sent in the API request
+    request_time = datetime.now()
+
+    start = time.time()
+
     data = request.get_json()
 
-    # Extract the required features from the request
-    # These must match the features used during model training
     sample = {
-        "Product_Weight": data["Product_Weight"],
-        "Product_Allocated_Area": data["Product_Allocated_Area"],
-        "Product_Sugar_Content": data["Product_Sugar_Content"],
-        "Product_Type": data["Product_Type"],
-        "Product_MRP": data["Product_MRP"],
-        "Store_Id": data["Store_Id"],
-        "Store_Establishment_Year": data["Store_Establishment_Year"],
-        "Store_Size": data["Store_Size"],
-        "Store_Location_City_Type": data["Store_Location_City_Type"],
-        "Store_Type": data["Store_Type"]
+
+        "Product_Weight":
+        data["Product_Weight"],
+
+        "Product_Allocated_Area":
+        data["Product_Allocated_Area"],
+
+        "Product_Sugar_Content":
+        data["Product_Sugar_Content"],
+
+        "Product_Type":
+        data["Product_Type"],
+
+        "Product_MRP":
+        data["Product_MRP"],
+
+        "Store_Id":
+        data["Store_Id"],
+
+        "Store_Establishment_Year":
+        data[
+            "Store_Establishment_Year"
+        ],
+
+        "Store_Size":
+        data["Store_Size"],
+
+        "Store_Location_City_Type":
+        data[
+            "Store_Location_City_Type"
+        ],
+
+        "Store_Type":
+        data["Store_Type"]
+
     }
 
-    # Convert the input dictionary into a Pandas DataFrame
-    # The model expects tabular input format
-    input_df = pd.DataFrame([sample])
+    input_df = pd.DataFrame(
+        [sample]
+    )
 
-    # Generate prediction using the trained model pipeline
-    prediction = model.predict(input_df)[0]
+    prediction = model.predict(
+        input_df
+    )[0]
 
-    # Return prediction as a JSON response
-    return jsonify({
-        "Predicted_Product_Store_Sales_Total": round(float(prediction),2)
-    })
+    result = {
+
+        "Predicted_Product_Store_Sales_Total":
+        round(
+            float(prediction),
+            2
+        )
+
+    }
+
+    response_time = datetime.now()
+
+    duration_ms = int(
+        (
+            time.time() - start
+        ) * 1000
+    )
+
+    log_prediction(
+
+        request_time,
+        response_time,
+        duration_ms,
+
+        sample,
+
+        result
+
+    )
+
+    return jsonify(result)
 
 
-# -------------------------------------------------------------
-# Endpoint for batch prediction
-# -------------------------------------------------------------
-# This endpoint accepts a CSV file containing multiple records
-# and returns predictions for each record
-@superKart_predictor_api.post('/v1/predictbatch')
-def predict_sales_batch():
+if __name__ == "__main__":
 
-    # Get uploaded CSV file from request
-    file = request.files['file']
+    superKart_predictor_api.run(
 
-    # Convert CSV file into Pandas DataFrame
-    input_data = pd.read_csv(file)
+        host="0.0.0.0",
 
-    # Generate predictions for all rows
-    predictions = model.predict(input_data)
+        port=7860,
 
-    # Add predictions to the original dataset
-    input_data["Predicted_Product_Store_Sales_Total"] = predictions
+        debug=True
 
-    # Return predictions as JSON output
-    return input_data.to_json(orient="records")
-
-
-# -------------------------------------------------------------
-# Run the Flask application
-# -------------------------------------------------------------
-# host='0.0.0.0' allows the API to be accessed externally
-# port=7860 is commonly used for ML deployment environments
-# debug=True enables debugging during development
-if __name__ == '__main__':
-    superKart_predictor_api.run(host='0.0.0.0', port=7860, debug=True)
+    )
