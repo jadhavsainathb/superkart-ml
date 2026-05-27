@@ -5,7 +5,7 @@ metadata:
   name: gui
 
 spec:
-
+  revisionHistoryLimit: 2
   replicas: 1
 
   selector:
@@ -25,8 +25,11 @@ spec:
       - name: gui
 
         image: 408502716092.dkr.ecr.ap-south-1.amazonaws.com/superkart-gui:v1
+
         imagePullPolicy: Always
+
         ports:
+
         - containerPort: 8501
 
 ---
@@ -37,17 +40,9 @@ kind: Service
 metadata:
   name: gui-service
 
-  annotations:
-
-    service.beta.kubernetes.io/aws-load-balancer-type: external
-
-    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
-
 spec:
 
   type: ClusterIP
-
-  sessionAffinity: ClientIP
 
   selector:
     app: gui
