@@ -30,19 +30,15 @@ jobs:
 
       with:
 
-        aws-access-key-id:
-          ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
 
-        aws-secret-access-key:
-          ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
-        aws-region:
-          ap-south-1
+        aws-region: ${{ secrets.AWS_REGION }}
 
     - name: Login ECR
 
-      uses:
-        aws-actions/amazon-ecr-login@v2
+      uses: aws-actions/amazon-ecr-login@v2
 
     - name: Build GUI
 
@@ -89,3 +85,33 @@ jobs:
 
         docker push \
         $ECR_REGISTRY/superkart-backend:${{ github.sha }}
+
+    - name: Update infra repo
+
+      run: |
+
+        git clone \
+        https://${{ secrets.INFRA_REPO_TOKEN }}@github.com/jadhavsainathb/superkart-infra.git
+
+        cd superkart-infra
+
+        sed -i \
+        "s|superkart-gui:.*|superkart-gui:${{ github.sha }}|g" \
+        k8s/gui.yaml
+
+        sed -i \
+        "s|superkart-backend:.*|superkart-backend:${{ github.sha }}|g" \
+        k8s/backend.yaml
+
+        git config user.email \
+        "github-actions@github.com"
+
+        git config user.name \
+        "github-actions"
+
+        git add .
+
+        git commit -m \
+        "update image ${{ github.sha }}" || true
+
+        git push origin main
