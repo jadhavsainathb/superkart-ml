@@ -166,7 +166,7 @@ if predict_button:
         st.divider()
 
         # KPI Prediction Card
-        st.markdown("## 📊 Predicted Sales")
+        st.markdown("## 📊 Predicted Sales ************")
 
         st.metric(
             label="Estimated Product Store Sales",
