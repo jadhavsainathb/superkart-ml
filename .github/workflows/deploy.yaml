@@ -9,104 +9,84 @@ env:
   ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
 
 jobs:
+
   build:
+
     runs-on: ubuntu-latest
 
-    if: github.event.head_commit.message != null && contains(github.event.head_commit.message, 'RELEASE')
+    if: contains(github.event.head_commit.message, 'RELEASE')
 
     steps:
 
       - name: Checkout
         uses: actions/checkout@v4
 
-    - name: Configure AWS
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      uses: aws-actions/configure-aws-credentials@v4
+      - name: Login ECR
+        uses: aws-actions/amazon-ecr-login@v2
 
-      with:
+      - name: Build GUI
+        run: |
+          docker build \
+          -t gui:${{ github.sha }} \
+          ./gui
 
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      - name: Build Backend
+        run: |
+          docker build \
+          -t backend:${{ github.sha }} \
+          ./backend
 
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: Tag GUI
+        run: |
+          docker tag \
+          gui:${{ github.sha }} \
+          $ECR_REGISTRY/superkart-gui:${{ github.sha }}
 
-        aws-region: ${{ secrets.AWS_REGION }}
+      - name: Tag Backend
+        run: |
+          docker tag \
+          backend:${{ github.sha }} \
+          $ECR_REGISTRY/superkart-backend:${{ github.sha }}
 
-    - name: Login ECR
+      - name: Push GUI
+        run: |
+          docker push \
+          $ECR_REGISTRY/superkart-gui:${{ github.sha }}
 
-      uses: aws-actions/amazon-ecr-login@v2
+      - name: Push Backend
+        run: |
+          docker push \
+          $ECR_REGISTRY/superkart-backend:${{ github.sha }}
 
-    - name: Build GUI
+      - name: Update infra repo
+        run: |
 
-      run: |
+          git clone \
+          https://${{ secrets.INFRA_REPO_TOKEN }}@github.com/jadhavsainathb/superkart-infra.git
 
-        docker build \
-        -t gui:${{ github.sha }} \
-        ./gui
+          cd superkart-infra
 
-    - name: Build Backend
+          sed -i \
+          "s|superkart-gui:.*|superkart-gui:${{ github.sha }}|g" \
+          k8s/gui.yaml
 
-      run: |
+          sed -i \
+          "s|superkart-backend:.*|superkart-backend:${{ github.sha }}|g" \
+          k8s/backend.yaml
 
-        docker build \
-        -t backend:${{ github.sha }} \
-        ./backend
+          git config user.email "github-actions@github.com"
 
-    - name: Tag GUI
+          git config user.name "github-actions"
 
-      run: |
+          git add .
 
-        docker tag \
-        gui:${{ github.sha }} \
-        $ECR_REGISTRY/superkart-gui:${{ github.sha }}
+          git commit -m "update image ${{ github.sha }}" || true
 
-    - name: Tag Backend
-
-      run: |
-
-        docker tag \
-        backend:${{ github.sha }} \
-        $ECR_REGISTRY/superkart-backend:${{ github.sha }}
-
-    - name: Push GUI
-
-      run: |
-
-        docker push \
-        $ECR_REGISTRY/superkart-gui:${{ github.sha }}
-
-    - name: Push Backend
-
-      run: |
-
-        docker push \
-        $ECR_REGISTRY/superkart-backend:${{ github.sha }}
-
-    - name: Update infra repo
-
-      run: |
-
-        git clone \
-        https://${{ secrets.INFRA_REPO_TOKEN }}@github.com/jadhavsainathb/superkart-infra.git
-
-        cd superkart-infra
-
-        sed -i \
-        "s|superkart-gui:.*|superkart-gui:${{ github.sha }}|g" \
-        k8s/gui.yaml
-
-        sed -i \
-        "s|superkart-backend:.*|superkart-backend:${{ github.sha }}|g" \
-        k8s/backend.yaml
-
-        git config user.email \
-        "github-actions@github.com"
-
-        git config user.name \
-        "github-actions"
-
-        git add .
-
-        git commit -m \
-        "update image ${{ github.sha }}" || true
-
-        git push origin main
+          git push origin main
