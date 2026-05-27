@@ -1,0 +1,91 @@
+name: BuildDeploy
+
+on:
+
+  push:
+
+    branches:
+
+      - main
+
+env:
+
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Checkout
+
+      uses: actions/checkout@v4
+
+    - name: Configure AWS
+
+      uses: aws-actions/configure-aws-credentials@v4
+
+      with:
+
+        aws-access-key-id:
+          ${{ secrets.AWS_ACCESS_KEY_ID }}
+
+        aws-secret-access-key:
+          ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+        aws-region:
+          ap-south-1
+
+    - name: Login ECR
+
+      uses:
+        aws-actions/amazon-ecr-login@v2
+
+    - name: Build GUI
+
+      run: |
+
+        docker build \
+        -t gui:${{ github.sha }} \
+        ./gui
+
+    - name: Build Backend
+
+      run: |
+
+        docker build \
+        -t backend:${{ github.sha }} \
+        ./backend
+
+    - name: Tag GUI
+
+      run: |
+
+        docker tag \
+        gui:${{ github.sha }} \
+        $ECR_REGISTRY/superkart-gui:${{ github.sha }}
+
+    - name: Tag Backend
+
+      run: |
+
+        docker tag \
+        backend:${{ github.sha }} \
+        $ECR_REGISTRY/superkart-backend:${{ github.sha }}
+
+    - name: Push GUI
+
+      run: |
+
+        docker push \
+        $ECR_REGISTRY/superkart-gui:${{ github.sha }}
+
+    - name: Push Backend
+
+      run: |
+
+        docker push \
+        $ECR_REGISTRY/superkart-backend:${{ github.sha }}
