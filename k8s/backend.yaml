@@ -6,6 +6,8 @@ metadata:
 
 spec:
 
+  revisionHistoryLimit: 2
+
   replicas: 2
 
   selector:
@@ -26,6 +28,8 @@ spec:
 
         image: 408502716092.dkr.ecr.ap-south-1.amazonaws.com/superkart-backend:v1
 
+        imagePullPolicy: Always
+
         ports:
 
         - containerPort: 7860
@@ -39,6 +43,8 @@ metadata:
   name: backend-service
 
 spec:
+
+  type: ClusterIP
 
   selector:
     app: backend
