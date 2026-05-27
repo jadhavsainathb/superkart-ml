@@ -154,7 +154,7 @@ predict_button = st.button("Predict Sales", type="primary")
 if predict_button:
 
     response = requests.post(
-        "http://backend:7860/v1/predict",
+        "http://backend-service:7860/v1/predict",
         json=product_data
     )
 
@@ -221,7 +221,7 @@ if file is not None:
     if st.button("Predict Batch Sales"):
 
         response = requests.post(
-            "http://backend:7860/v1/predictbatch",
+            "http://backend-service:7860/v1/predictbatch",
             files={"file": file}
         )
 
