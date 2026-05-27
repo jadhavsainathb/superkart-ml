@@ -1,29 +1,23 @@
 name: BuildDeploy
 
 on:
-
   push:
-
     branches:
-
       - main
 
 env:
-
   ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
 
 jobs:
-
   build:
+    runs-on: ubuntu-latest
 
-     if: ${{ contains(github.event.head_commit.message, 'RELEASE') }}   
-     runs-on: ubuntu-latest
+    if: github.event.head_commit.message != null && contains(github.event.head_commit.message, 'RELEASE')
 
     steps:
 
-    - name: Checkout
-
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
     - name: Configure AWS
 
